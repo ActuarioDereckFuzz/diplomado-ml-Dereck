@@ -1,0 +1,162 @@
+####ComparaciónTweedieTwoGLM
+
+set.seed(123)
+suppressWarnings(suppressMessages({
+  library(statmod)
+  library(ggplot2)
+  library(scales)
+  library(tweedie)
+}))
+
+#Simulemos datos de reclamación de poliza (montos) semi-continuos
+#Nuestra unica covariable sera la edad de los sujetos
+
+n <- 4000
+age <- round(runif(n, 18, 75))
+x <- scale(age)[,1]
+
+# Frecuencia de reclamaciones: Poisson
+
+lambda <- exp(-1.2 + 0.45*x)
+N      <- rpois(n, lambda)
+
+head(N)
+
+length(N)
+
+barplot(table(N),col=rainbow(5))
+
+Dat<-data.frame(table(N))
+
+ST<-data.frame(Frecuencia=Dat$Freq,numero=gl(5,1,labels=Dat$N))
+
+p<-ggplot(ST, aes(x = numero, y = Frecuencia,fill=factor(numero))) +
+  geom_bar(stat = "identity") +
+geom_text(aes(label = sprintf("%.0f",Frecuencia)), 
+            vjust = -.5)+  
+ggtitle("Numero de reclamaciones")+
+theme(plot.title = element_text(color="blue", size=20, face="bold.italic"))+theme(legend.position = "none")
+p
+
+p1<-ggplot(ST, aes(x = numero, y = Frecuencia,fill=numero)) +
+  geom_bar(stat = "identity") + 
+  geom_text(aes(label = sprintf("%.2f%%", Frecuencia/sum(Frecuencia) * 100)), 
+            vjust = -.5)+
+ggtitle("Porcentaje de reclamaciones")+
+theme(plot.title = element_text(color="blue", size=20, face="bold.italic"))+theme(legend.position = "none")
+
+p1
+
+# Severidad de relamaciones: Gamma
+
+mu_sev <- exp(6.0 + 0.30*x)
+total  <- numeric(n)
+for (i in seq_len(n)) if (N[i] > 0)
+  total[i] <- sum(rgamma(N[i], shape = 2, scale = mu_sev[i]/ 2))
+
+length(mu_sev)
+
+sev<-data.frame(mu_sev)
+head(sev)
+
+plot(density(mu_sev), col="darkblue",main="Densidad: Montos de reclamacion")
+
+ggplot(sev, aes(x = mu_sev)) +
+  geom_density(fill = "#D43AD3", color = "black", alpha = 0.5, linewidth = 0.8) +
+  theme_minimal()
+
+dat <- data.frame(total = total, x = x, claim = as.integer(N > 0))
+cat(sprintf("Porcentaje de polizas con cero reclamaciones: %.1f%%\n", 100*mean(dat$total == 0)))
+
+dim(dat)
+
+head(dat)
+
+###Modelo GLM Tweedie-Poisson compuesto (un solo ajuste)
+
+###Estimando (que es gerundio) el valor de p
+
+p_profile <- tweedie.profile(total ~ 1,
+                        data = dat, p.vec = seq(1.3, 1.7, by = 0.1),
+                        do.plot = FALSE, method = "series")
+p_hat <- p_profile$p.max
+cat("Valor estimado de la potencia en Tweedie, p:", round(p_hat, 3), "\n\n")
+
+fit_tw <- glm(total ~ x, family = tweedie(var.power = p_hat, link.power = 0),data = dat)
+
+mu_tw  <- predict(fit_tw, type = "response")
+
+cat(sprintf("\nTweedie GLM  : coef(x) = %.3f\n", coef(fit_tw)["x"]))
+
+### Ajuste en dos partes o etapas: Two-part (logistic frequency x Gamma severity)
+
+fit_freq <- glm(claim ~ x, family = binomial(link = "logit"), data = dat)
+
+fit_freq
+
+fit_sev  <- glm(total ~ x, family = Gamma(link = "log"),data = subset(dat, total > 0))
+
+fit_sev
+
+mu_2p <- predict(fit_freq, type = "response")*predict(fit_sev, newdata = dat, type = "response")
+
+cat(sprintf("Two-part: P(claim) coef(x) = %.3f, severity coef(x) = %.3f\n",coef(fit_freq)["x"], coef(fit_sev)["x"]))
+
+#Comparacion de los dos metodos de ajuste por deciles de riesgo 
+
+dec  <- cut(dat$x, breaks = quantile(dat$x, 0:10/10), include.lowest = TRUE)
+obs  <- tapply(dat$total, dec, mean)
+tw   <- tapply(mu_tw,dec, mean)
+tp   <- tapply(mu_2p,dec, mean)
+
+plot(seq_along(obs), obs, type = "b", pch = 19, lwd = 2, col="darkred",
+     xlab = "Deciles de riesgo (low -> high)", ylab = "Costo medio por poliza",
+     main = "Montos de reclamacion: Predichos vs. Observados")
+lines(seq_along(tw), tw, type = "b", pch = 17, col = "#1fd730", lwd = 2)
+lines(seq_along(tp), tp, type = "b", pch = 15, col = "#2c7fb8", lwd = 2)
+legend("topleft", legend = c("Observados", "Tweedie", "Two-part"),
+       col = c("darkred", "#1fd730", "#2c7fb8"),
+       pch = c(19, 17, 15), lwd = 2, bty = "n")
+
+###¿Por que Tweedie y Two-part NO SON EXACTAMENTE IGUALES?
+
+fit_freq2 <- glm(claim ~ x, family = poisson(link = "log"), data = dat)
+
+fit_freq2
+
+mu_2p2 <- predict(fit_freq2, newdata = dat, type = "response")*predict(fit_sev, newdata = dat, type = "response")
+
+cat(sprintf("Two-part: P(claim) coef(x) = %.3f, severity coef(x) = %.3f\n",coef(fit_freq2)["x"], coef(fit_sev)["x"]))
+
+tp2   <- tapply(mu_2p2,dec, mean)
+
+plot(seq_along(obs), obs, type = "b", pch = 19, lwd = 2, col="#301fd7",
+     xlab = "Deciles de riesgo (low -> high)", ylab = "Costo medio por poliza",
+     main = "Montos de reclamacion: Predichos vs. Observados")
+lines(seq_along(tw), tw, type = "b", pch = 17, col = "#1fd730", lwd = 2)
+lines(seq_along(tp), tp2, type = "b", pch = 15, col = "#2c7fb8", lwd = 2)
+legend("topleft", legend = c("Observados", "Tweedie", "Two-part"),
+       col = c("#301fd7", "#1fd730", "#2c7fb8"),
+       pch = c(19, 17, 15), lwd = 2, bty = "n")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
