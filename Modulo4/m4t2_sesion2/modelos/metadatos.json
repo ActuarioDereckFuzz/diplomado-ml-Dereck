@@ -1,0 +1,62 @@
+{
+  "frecuencia": {
+    "respuesta": "num_siniestros",
+    "formula": "num_siniestros ~ C(nivel_bonus_cat) + C(edad_conductor_cat) + C(combustible) + C(antiguedad_vehiculo_cat) + C(potencia_cat) + C(cobertura) + C(uso)",
+    "family": "Poisson",
+    "offset": "log(exposicion)"
+  },
+  "severidad": {
+    "respuesta": "severidad",
+    "formula": "severidad ~ C(edad_conductor_cat) + C(antiguedad_vehiculo_cat) + C(potencia_cat) + C(nivel_bonus_cat) + C(sexo)",
+    "family": "Gamma(log)",
+    "weights": "num_siniestros",
+    "filtro": "num_siniestros>0"
+  },
+  "agregado": {
+    "respuesta": "pure_premium",
+    "formula": "pure_premium ~ C(cobertura)+C(sexo)+C(combustible)+C(edad_conductor_cat)+C(potencia_cat)+C(nivel_bonus_cat)",
+    "family": "Tweedie",
+    "p": 1.3,
+    "weights": "exposicion"
+  },
+  "bandings": {
+    "edad_conductor": [
+      17,
+      30,
+      35,
+      45,
+      50,
+      55,
+      60,
+      95
+    ],
+    "antiguedad_vehiculo": [
+      -1,
+      1,
+      2,
+      3,
+      4,
+      5,
+      10,
+      15,
+      50
+    ],
+    "potencia": [
+      9,
+      40,
+      50,
+      60,
+      70,
+      250
+    ],
+    "nivel_bonus": [
+      -1,
+      0,
+      1,
+      2,
+      5,
+      10,
+      25
+    ]
+  }
+}
