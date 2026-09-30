@@ -80,3 +80,31 @@ Archivo: `diplomado-ml-Dereck\Modulo1\sesion7\sesion7_M1_notebook.ipynb`.
 - Promedio: 9.175 / 10
 - Bonus: +0.5
 - **Final: 9.68 / 10**
+
+---
+
+# Retroalimentación — Módulo 4 · Tema 2 (GLM con Python)
+
+**Alumno:** Dereck Favila Limón
+**Variable asignada:** `cobertura`
+
+## Desglose por pregunta
+
+| Pregunta | Pts | Comentario |
+|---|---|---|
+| P1 | 9/10 | Diagnóstico correcto y completo: φ=1.166>1, Cameron-Trivedi rechaza equidispersión (p=3.7e-56), identificas correctamente que la sobredispersión es leve (φ<1.5) y que por eso QuasiPoisson basta, sin necesidad de Binomial Negativa (φ>2). Solo hay erratas menores (“Person”, “corriga”). |
+| P2 | 9/10 | Interpretación sólida: RC +7.9% recargo, Limitada -5.55% descuento, correctamente identificas que ningún IC cruza 1 y ambos p<0.05, justificando mantener los tres niveles segmentados. |
+| P3 | 9/10 | Explicas bien el mecanismo (offset + liga log fuerza suma predicha = suma observada) y lo que aporta el GLM (p-values, IC, combinación multiplicativa de variables). |
+| P4 | 9/10 | Buena explicación de CV constante en Gamma, del problema de modelar E[log Y] en vez de E[Y] con el sesgo de retransformación, y de por qué Lognormal no pertenece a la familia exponencial. |
+| P5 | 9/10 | Elección correcta de Binomial Negativa citando tus propios AIC/BIC, y explicas adecuadamente por qué un pseudo R² bajo es normal en frecuencia de siniestros. |
+| P6 | 10/10 | Excelente: detectas que el orden de riesgo cambia entre frecuencia (RC>Amplia>Limitada) y severidad (Amplia>RC>Limitada), cuantificas los descuentos de severidad y conectas bien esto con la necesidad de modelar Frecuencia × Severidad por separado. |
+| P7 | 9/10 | Distingues correctamente calibración (ratio 1.025, sobreestimación de 2.5%) de discriminación (Gini 0.23, modesta), con buena explicación de qué mide cada métrica. |
+| P8 | 9/10 | Lectura correcta de la tabla: RC prima más alta ($191.77, +5.18%), Limitada la más baja ($163.39, -10.39%), con narrativa consistente con frecuencia y severidad. |
+| P9 | 8/10 | Buena nota técnica que integra frecuencia, severidad y prima pura con números correctos (Amplia 1.5x severidad de Limitada, 1.17x de RC). Le faltó incluir explícitamente un intervalo de confianza para reforzar el argumento defendible ante CNSF. |
+
+## Redacción: 9/10
+
+## Nota final: 90/100 (calificación: 9.0/10)
+
+## Comentarios generales
+Evaluación muy sólida y consistente en las tres partes, con buen manejo tanto conceptual (equidispersión, familia Gamma, calibración vs. discriminación) como numérico (citas tus propios rating factors y factores de tarifa con precisión). Destaca especialmente tu respuesta en P6, donde detectas bien que frecuencia y severidad apuntan en direcciones distintas para `cobertura`. Para subir un poco más, procura incluir intervalos de confianza en la nota técnica final (P9) para que el argumento sea aún más defendible ante el regulador. Muy buen trabajo.
