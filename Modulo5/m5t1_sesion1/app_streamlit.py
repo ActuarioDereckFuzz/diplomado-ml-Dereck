@@ -53,8 +53,8 @@ def cargar_datos():
     """Lee la cartera. Acepta parquet (ligero) o pickle. Cacheada: se lee una sola vez."""
     candidatos = [
         "datos/datos.parquet", "datos/datos.pkl",
-        "../../Modulo_4/m4t2_sesion1/datos/datos.parquet",
-        "../../Modulo_4/m4t2_sesion1/datos/datos.pkl",
+        "../../Modulo4/m4t2_sesion1/datos/datos.parquet",
+        "../../Modulo4/m4t2_sesion1/datos/datos.pkl",
     ]
     ruta = next((r for r in candidatos if os.path.exists(r)), None)
     if ruta is None:

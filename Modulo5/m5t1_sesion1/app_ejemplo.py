@@ -12,15 +12,15 @@ def ruta_datos():
     """Devuelve la primera ruta que exista. Evita el clásico FileNotFoundError."""
     for r in ["../../../datos/datos.parquet", 
               "../../datos/datos.parquet",
-              "../../Modulo_4/m4t2_sesion1/datos/datos.parquet",
-              "../../../Modulo_4/m4t2_sesion1/datos/datos.parquet"]:
+              "../../Modulo4/m4t2_sesion1/datos/datos.pkl",
+              "../../../Modulo4/m4t2_sesion1/datos/datos.parquet"]:
         if os.path.exists(r):
             return r
     raise FileNotFoundError("No encuentro datos.parquet. Ponlo en una carpeta 'datos/'.")
 
 @st.cache_data
 def cargar_datos():
-    df = pd.read_parquet(ruta_datos())
+    df = pd.read_parquet(ruta_datos()) if ruta_datos().endswith(".parquet") else pd.read_pickle(ruta_datos())
     df["edad_cat"] = pd.cut(df["edad_conductor"], bins=BANDAS_EDAD)
     return df
 

@@ -52,8 +52,8 @@ BANDAS_EDAD = [17, 30, 35, 45, 50, 55, 60, 95]
 def cargar_datos():
     candidatos = [
         "datos/datos.parquet", "datos/datos.pkl",
-        "../../Modulo_4/m4t2_sesion1/datos/datos.parquet",
-        "../../Modulo_4/m4t2_sesion1/datos/datos.pkl",
+        "../../Modulo4/m4t2_sesion1/datos/datos.parquet",
+        "../../Modulo4/m4t2_sesion1/datos/datos.pkl",
     ]
     ruta = next((r for r in candidatos if os.path.exists(r)), None)
     if ruta is None:
