@@ -22,6 +22,7 @@ Ideas de Streamlit que se enseñan aquí:
     valor filtramos el DataFrame y todo lo de abajo se recalcula solo.
 """
 
+import sqlite3
 import os
 import numpy as np
 import pandas as pd
@@ -58,19 +59,32 @@ BANDINGS = {"edad_conductor": [17, 30, 35, 45, 50, 55, 60, 95],
 # ─────────────────────────────────────────────────────────────────────────────
 # 1 · Carga de datos (cacheada) — la fuente de verdad es la cartera de M4
 # ─────────────────────────────────────────────────────────────────────────────
+# @st.cache_data
+# def cargar_datos():
+#     """Lee la cartera. Acepta parquet (ligero) o pickle. Cacheada: se lee una sola vez."""
+#     candidatos = [
+#         "datos/datos.parquet", "datos/datos.pkl",
+#         "../../Modulo4/m4t2_sesion1/datos/datos.parquet",
+#         "../../Modulo4/m4t2_sesion1/datos/datos.pkl",
+#     ]
+#     ruta = next((r for r in candidatos if os.path.exists(r)), None)
+#     if ruta is None:
+#         st.error("No encuentro datos.parquet ni datos.pkl. Copia la cartera de M4 a Modulo_5/datos/.")
+#         st.stop()
+#     df = pd.read_parquet(ruta) if ruta.endswith(".parquet") else pd.read_pickle(ruta)
+#     df["edad_cat"] = pd.cut(df["edad_conductor"], bins=BANDAS_EDAD)
+#     return df
+
+
 @st.cache_data
 def cargar_datos():
-    """Lee la cartera. Acepta parquet (ligero) o pickle. Cacheada: se lee una sola vez."""
-    candidatos = [
-        "datos/datos.parquet", "datos/datos.pkl",
-        "../../Modulo4/m4t2_sesion1/datos/datos.parquet",
-        "../../Modulo4/m4t2_sesion1/datos/datos.pkl",
-    ]
-    ruta = next((r for r in candidatos if os.path.exists(r)), None)
-    if ruta is None:
-        st.error("No encuentro datos.parquet ni datos.pkl. Copia la cartera de M4 a Modulo_5/datos/.")
-        st.stop()
-    df = pd.read_parquet(ruta) if ruta.endswith(".parquet") else pd.read_pickle(ruta)
+    if not os.path.exists("../../Modulo4/m4t2_sesion1/datos/cartera.db"):
+        con0 = sqlite3.connect("../../Modulo4/m4t2_sesion1/datos/cartera.db")
+        pd.read_parquet("../../Modulo4/m4t2_sesion1/datos/datos.parquet", engine="pyarrow").to_sql("cartera", con0, if_exists="replace", index=False)
+        con0.close()
+    con = sqlite3.connect("../../Modulo4/m4t2_sesion1/datos/cartera.db")
+    df = pd.read_sql("SELECT * FROM cartera", con)
+    con.close()
     df["edad_cat"] = pd.cut(df["edad_conductor"], bins=BANDAS_EDAD)
     return df
 
