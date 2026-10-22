@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>01 — Metadata Report</title>
+  <style>
+    /* Page-wide typography and layout */
+    body {
+      font-family: system-ui, sans-serif;
+      max-width: 860px;
+      margin: 40px auto;
+      padding: 0 24px;
+      color: #222;
+      background: #fff;
+    }
+    h1 { color: #1a4c8c; margin-bottom: 4px; }
+    p.intro { margin-top: 4px; color: #555; }
+
+    /* File-picker card */
+    .picker {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 24px 0;
+      padding: 14px 16px;
+      background: #f0f4fa;
+      border-radius: 6px;
+      border: 1px solid #d0daea;
+    }
+
+    /* Error banner */
+    .error-box {
+      padding: 10px 14px;
+      background: #fdf0f0;
+      border-left: 4px solid #c0392b;
+      color: #c0392b;
+      border-radius: 0 4px 4px 0;
+      margin-bottom: 16px;
+    }
+
+    /* Two-column definition grid: label | value */
+    .meta-grid {
+      display: grid;
+      grid-template-columns: 200px 1fr;
+      gap: 6px 20px;
+      margin: 16px 0;
+    }
+    .meta-label { font-weight: 600; color: #444; }
+    .meta-value { font-family: monospace; word-break: break-all; }
+  </style>
+</head>
+<body>
+  <h1>01 — Metadata Report</h1>
+  <p class="intro">
+    Select a <code>teaching_export_*.json</code> file to display its metadata.
+    No server is required — the browser reads the local file directly.
+  </p>
+
+  <!-- input[type="file"] opens the OS file picker when clicked -->
+  <div class="picker">
+    <label for="fileInput"><strong>JSON file:</strong></label>
+    <input type="file" id="fileInput" accept=".json">
+  </div>
+
+  <!-- These areas are hidden until a file is loaded -->
+  <div id="errBox" class="error-box" style="display:none"></div>
+  <div id="output"                   style="display:none">
+    <h2>Report metadata</h2>
+    <div id="metaGrid" class="meta-grid"></div>
+  </div>
+
+  <script>
+    // FileReader reads the selected file as text without any server request.
+    document.getElementById('fileInput').addEventListener('change', function (e) {
+      var file = e.target.files[0];
+      if (!file) return;
+      var reader = new FileReader();
+      // onload fires when readAsText() finishes; result holds the full file string.
+      reader.onload = function (evt) { loadDoc(evt.target.result); };
+      reader.readAsText(file);
+    });
+
+    function showError(msg) {
+      document.getElementById('errBox').textContent = msg;
+      document.getElementById('errBox').style.display = '';
+      document.getElementById('output').style.display = 'none';
+    }
+
+    function loadDoc(text) {
+      // JSON.parse() throws SyntaxError if the text is not valid JSON.
+      var doc;
+      try { doc = JSON.parse(text); }
+      catch (e) { showError('Invalid JSON: ' + e.message); return; }
+
+      // Enforce schema version; only "1.0" is supported by this report.
+      if (doc.schema_version !== '1.0') {
+        showError('Unsupported schema_version: ' + JSON.stringify(doc.schema_version));
+        return;
+      }
+
+      // Verify every required top-level section exists.
+      var required = ['metadata', 'assumptions', 'triangle', 'development', 'ultimate_records'];
+      for (var i = 0; i < required.length; i++) {
+        if (doc[required[i]] == null) {
+          showError('Missing required section: ' + required[i]);
+          return;
+        }
+      }
+
+      // Verify the triangle has the arrays renderMeta() counts.
+      var t = doc.triangle;
+      if (!Array.isArray(t.accident_periods) || !Array.isArray(t.development_ages)) {
+        showError('triangle.accident_periods or triangle.development_ages is missing or not an array');
+        return;
+      }
+
+      // Wrap the render call so any unexpected data shape shows an error banner.
+      try {
+        renderMeta(doc);
+      } catch (e) {
+        showError('Render error: ' + e.message);
+      }
+    }
+
+    function renderMeta(doc) {
+      document.getElementById('errBox').style.display = 'none';
+      document.getElementById('output').style.display = '';
+
+      var m = doc.metadata, a = doc.assumptions, t = doc.triangle;
+
+      // Array of [label, value] pairs displayed in the grid.
+      var rows = [
+        ['Schema version',    doc.schema_version],
+        ['Run ID',            doc.run_id],
+        ['Generated at',      doc.generated_at],
+        ['Cutoff',            m.cutoff],
+        ['Concept',           m.concept],
+        ['Method',            m.method],
+        ['Basis',             m.basis],
+        ['Units',             m.units],
+        ['Selected average',  a.selected_average],
+        ['Tail convention',   a.tail_convention],
+        ['Accident periods',  t.accident_periods.length],
+        ['Development ages',  t.development_ages.length],
+      ];
+
+      // Create a label div and value div for each row, then append to the grid.
+      var grid = document.getElementById('metaGrid');
+      grid.innerHTML = '';
+      for (var i = 0; i < rows.length; i++) {
+        var lDiv = document.createElement('div');
+        lDiv.className   = 'meta-label';
+        lDiv.textContent = rows[i][0];
+        var vDiv = document.createElement('div');
+        vDiv.className   = 'meta-value';
+        // null/undefined fields display as an em-dash
+        vDiv.textContent = (rows[i][1] == null) ? '—' : rows[i][1];
+        grid.appendChild(lDiv);
+        grid.appendChild(vDiv);
+      }
+    }
+  </script>
+</body>
+</html>

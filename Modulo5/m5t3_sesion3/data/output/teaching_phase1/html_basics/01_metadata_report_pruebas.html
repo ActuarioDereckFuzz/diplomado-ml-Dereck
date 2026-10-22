@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Metadata Report - Pruebas</title>
+</head>
+<body>
+
+<h1>01 — Metadata Report</h1>
+
+<p class="intro">
+  Select a <code>teaching_export_*.json</code> file
+  to display its metadata.
+
+  No server is required.
+</p>
+
+<!-- Selector de archivo -->
+<div class="picker">
+  <label for="fileInput">
+    <strong>JSON file:</strong>
+  </label>
+
+  <input
+    type="file"
+    id="fileInput"
+    accept=".json"
+  >
+</div>
+
+<!-- Contenedor de errores -->
+<div
+  id="errBox"
+  class="error-box"
+  style="display:none">
+</div>
+
+<!-- Contenedor de resultados -->
+<div
+  id="output"
+  style="display:none">
+
+  <h2>Report metadata</h2>
+
+  <div
+    id="metaGrid"
+    class="meta-grid">
+  </div>
+
+</div>
+
+<script>
+
+  // ---------------------------------------------------------
+  // A. LEER ARCHIVOS DESDE EL SELECTOR
+  // ---------------------------------------------------------
+
+  var input = document.getElementById("fileInput");
+
+  if (input) {
+
+    input.addEventListener("change", function(e) {
+
+      var file = e.target.files[0];
+
+      if (!file) return;
+
+      var reader = new FileReader();
+
+      reader.onload = function(evt) {
+        loadDoc(evt.target.result);
+      };
+
+      reader.onerror = function() {
+        showError("Could not read the selected file.");
+      };
+
+      reader.readAsText(file);
+
+    });
+
+  }
+
+
+  // ---------------------------------------------------------
+  // B. MOSTRAR ERRORES
+  // ---------------------------------------------------------
+
+  function showError(msg) {
+
+    var error = document.getElementById("errBox");
+    var output = document.getElementById("output");
+
+    if (!error || !output) return;
+
+    error.textContent = msg;
+    error.style.display = "";
+    output.style.display = "none";
+
+  }
+
+
+  // ---------------------------------------------------------
+  // C. INTERPRETAR Y VALIDAR EL JSON
+  // ---------------------------------------------------------
+
+  function loadDoc(text) {
+
+    var doc;
+
+    // Convertir texto JSON en objeto JavaScript
+    try {
+
+      doc = JSON.parse(text);
+
+    } catch(e) {
+
+      showError("Invalid JSON: " + e.message);
+      return;
+
+    }
+
+    // Validar versión
+    if (doc === null || doc.schema_version !== "1.0") {
+
+      showError("Unsupported schema_version");
+      return;
+
+    }
+
+    // Validar secciones principales
+    var required = [
+      "metadata",
+      "assumptions",
+      "triangle",
+      "development",
+      "ultimate_records"
+    ];
+
+    for (var i = 0; i < required.length; i++) {
+
+      if (doc[required[i]] == null) {
+
+        showError("Missing section: " + required[i]);
+        return;
+
+      }
+
+    }
+
+    // Validar dimensiones del triángulo
+    var t = doc.triangle;
+
+    if (
+      !Array.isArray(t.accident_periods) ||
+      !Array.isArray(t.development_ages)
+    ) {
+
+      showError("Invalid triangle structure");
+      return;
+
+    }
+
+    // Construir la visualización
+    try {
+
+      renderMeta(doc);
+
+    } catch(e) {
+
+      showError("Render error: " + e.message);
+
+    }
+
+  }
+
+
+  // ---------------------------------------------------------
+  // D. CONSTRUIR LA TABLA DE METADATOS
+  // ---------------------------------------------------------
+
+  function renderMeta(doc) {
+
+    var grid = document.getElementById("metaGrid");
+
+    if (!grid) return;
+
+    var m = doc.metadata;
+    var a = doc.assumptions;
+    var t = doc.triangle;
+
+    var rows = [
+
+      ["Schema version", doc.schema_version],
+      ["Run ID", doc.run_id],
+      ["Generated at", doc.generated_at],
+      ["Cutoff", m.cutoff],
+      ["Concept", m.concept],
+      ["Method", m.method],
+      ["Basis", m.basis],
+      ["Units", m.units],
+      ["Selected average", a.selected_average],
+      ["Tail convention", a.tail_convention],
+      ["Accident periods", t.accident_periods.length],
+      ["Development ages", t.development_ages.length]
+
+    ];
+
+    // Limpiar resultados anteriores
+    grid.innerHTML = "";
+
+    // Crear las filas
+    for (var i = 0; i < rows.length; i++) {
+
+      var label = document.createElement("div");
+      label.className = "meta-label";
+      label.textContent = rows[i][0];
+
+      var value = document.createElement("div");
+      value.className = "meta-value";
+
+      value.textContent = (
+        rows[i][1] == null
+      ) ? "—" : rows[i][1];
+
+      grid.appendChild(label);
+      grid.appendChild(value);
+
+    }
+
+    // Mostrar resultados y ocultar errores
+    document.getElementById("errBox").style.display = "none";
+    document.getElementById("output").style.display = "";
+
+  }
+
+
+  // ---------------------------------------------------------
+  // E. CARGAR JSON INCRUSTADO (SI EXISTE)
+  // ---------------------------------------------------------
+
+  var embedded = document.getElementById("embeddedJSON");
+
+  if (embedded && document.getElementById("metaGrid")) {
+
+    loadDoc(embedded.textContent);
+
+  }
+
+</script>
+</body>
+</html>
