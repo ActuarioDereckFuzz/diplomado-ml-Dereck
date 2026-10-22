@@ -1,0 +1,916 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Actuarial Teaching Viewer</title>
+<style>
+/* ── Design tokens ─────────────────────────────────────────────────────── */
+:root {
+  --bg: #f8f9fa;
+  --surface: #ffffff;
+  --surface-alt: #f1f3f5;
+  --border: #dee2e6;
+  --text: #212529;
+  --text-muted: #6c757d;
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --danger: #dc3545;
+  --success: #198754;
+  --warn: #ffc107;
+
+  /* heatmap palette: white → blue for positive, orange for negative */
+  --heat-zero: #ffffff;
+  --heat-max: #1a4c8c;
+  --heat-neg: #c0392b;
+  --missing-bg: #f1f3f5;
+  --missing-text: #adb5bd;
+
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, "Cascadia Code", "Fira Code", monospace;
+  --radius: 6px;
+  --shadow: 0 1px 3px rgba(0,0,0,0.10), 0 1px 2px rgba(0,0,0,0.06);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface-alt: #21262d;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-muted: #7d8590;
+    --accent: #58a6ff;
+    --accent-hover: #388bfd;
+    --heat-zero: #21262d;
+    --heat-max: #388bfd;
+    --heat-neg: #f85149;
+    --missing-bg: #1c2128;
+    --missing-text: #484f58;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d1117; --surface: #161b22; --surface-alt: #21262d;
+  --border: #30363d; --text: #e6edf3; --text-muted: #7d8590;
+  --accent: #58a6ff; --accent-hover: #388bfd;
+  --heat-zero: #21262d; --heat-max: #388bfd; --heat-neg: #f85149;
+  --missing-bg: #1c2128; --missing-text: #484f58;
+}
+
+/* ── Reset & base ──────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 14px; }
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  padding: 0 0 3rem;
+}
+
+/* ── Layout ────────────────────────────────────────────────────────────── */
+.page-header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 1rem 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.page-header h1 { font-size: 1.2rem; font-weight: 600; flex: 1; }
+.container { max-width: 1400px; margin: 0 auto; padding: 0 1rem; }
+.section { margin: 1.5rem 0; }
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.card-header {
+  padding: 0.6rem 1rem;
+  background: var(--surface-alt);
+  border-bottom: 1px solid var(--border);
+  font-weight: 600;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.card-body { padding: 1rem; }
+
+/* ── Upload area ───────────────────────────────────────────────────────── */
+#upload-area {
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 3rem 2rem;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  margin: 2rem auto;
+  max-width: 600px;
+}
+#upload-area:hover, #upload-area.drag-over {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 6%, var(--surface));
+}
+#upload-area .upload-icon { font-size: 2.5rem; margin-bottom: 0.5rem; color: var(--text-muted); }
+#upload-area p { color: var(--text-muted); margin-top: 0.3rem; font-size: 0.9rem; }
+#file-input { display: none; }
+.btn {
+  display: inline-block;
+  padding: 0.45rem 1rem;
+  border-radius: var(--radius);
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 500;
+  transition: background 0.15s;
+}
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent-hover); }
+.btn-sm { padding: 0.3rem 0.7rem; font-size: 0.8rem; }
+.btn-outline {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+.btn-outline:hover { background: var(--surface-alt); }
+.btn-outline.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+}
+
+/* ── Alerts / messages ─────────────────────────────────────────────────── */
+.alert {
+  padding: 0.8rem 1rem;
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+  margin: 1rem 0;
+  font-size: 0.88rem;
+}
+.alert-danger { background: #fff5f5; border-color: #fca5a5; color: #991b1b; }
+.alert-success { background: #f0fdf4; border-color: #86efac; color: #166534; }
+.alert-warning { background: #fffbeb; border-color: #fde68a; color: #92400e; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .alert-danger { background: #2d1b1b; border-color: #7f1d1d; color: #fca5a5; }
+  :root:not([data-theme="light"]) .alert-success { background: #14271c; border-color: #166534; color: #86efac; }
+  :root:not([data-theme="light"]) .alert-warning { background: #2d2410; border-color: #92400e; color: #fde68a; }
+}
+
+/* ── Metadata grid ─────────────────────────────────────────────────────── */
+.meta-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0.75rem;
+}
+.meta-item { display: flex; flex-direction: column; gap: 0.15rem; }
+.meta-item .label { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.meta-item .value { font-size: 0.95rem; font-weight: 500; font-family: var(--mono); }
+.flag-yes { color: var(--danger); font-weight: 600; }
+.flag-no { color: var(--text-muted); }
+
+/* ── Toggle group ──────────────────────────────────────────────────────── */
+.toggle-group { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+
+/* ── Scrollable table containers ───────────────────────────────────────── */
+.table-scroll { overflow-x: auto; max-width: 100%; }
+.tbl {
+  border-collapse: collapse;
+  font-size: 0.78rem;
+  font-family: var(--mono);
+  white-space: nowrap;
+  min-width: 100%;
+}
+.tbl th {
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  padding: 0.3rem 0.5rem;
+  text-align: right;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  font-size: 0.73rem;
+}
+.tbl th.row-header { text-align: left; position: sticky; left: 0; z-index: 2; }
+.tbl td {
+  border: 1px solid var(--border);
+  padding: 0.28rem 0.45rem;
+  text-align: right;
+}
+.tbl td.row-label {
+  text-align: left;
+  background: var(--surface-alt);
+  font-weight: 500;
+  position: sticky;
+  left: 0;
+  z-index: 1;
+}
+.tbl td.missing {
+  background: var(--missing-bg);
+  color: var(--missing-text);
+}
+.tbl .selected-row td { border-top: 2px solid var(--accent); border-bottom: 2px solid var(--accent); font-weight: 600; }
+
+/* ── Heatmap cells ─────────────────────────────────────────────────────── */
+.heat-cell { transition: background-color 0.05s; }
+
+/* ── Ultimate summary table ────────────────────────────────────────────── */
+.summary-tbl { font-size: 0.82rem; }
+.summary-tbl td, .summary-tbl th { padding: 0.35rem 0.65rem; }
+.flag-cell-yes { background: #fef2f2; color: #b91c1c; font-weight: 600; }
+.flag-cell-no { color: var(--text-muted); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .flag-cell-yes { background: #2d1515; color: #f87171; }
+}
+
+/* ── Legend ────────────────────────────────────────────────────────────── */
+.legend {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+  flex-wrap: wrap;
+}
+.legend-bar {
+  width: 120px;
+  height: 10px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+}
+.legend-swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 2px;
+  border: 1px solid var(--border);
+  display: inline-block;
+  vertical-align: middle;
+}
+
+/* ── Assumptions list ──────────────────────────────────────────────────── */
+.assumptions { font-size: 0.85rem; line-height: 1.6; }
+.assumptions dt { font-weight: 600; margin-top: 0.4rem; }
+.assumptions dd { margin-left: 1.2rem; color: var(--text-muted); }
+
+/* ── Tabs ──────────────────────────────────────────────────────────────── */
+.tab-bar {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+}
+.tab-btn {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  transition: color 0.1s, border-color 0.1s;
+}
+.tab-btn:hover { color: var(--text); }
+.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+.tab-panel { display: none; padding: 1rem 0; }
+.tab-panel.active { display: block; }
+
+/* ── Utility ───────────────────────────────────────────────────────────── */
+.hidden { display: none !important; }
+.text-muted { color: var(--text-muted); }
+.mono { font-family: var(--mono); }
+.row-between { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; }
+.gap-sm { gap: 0.4rem; }
+</style>
+</head>
+<body>
+
+<header class="page-header">
+  <h1>Actuarial Teaching Viewer — Development Method</h1>
+  <div style="display:flex;gap:0.5rem;align-items:center">
+    <span id="run-id-badge" class="hidden mono text-muted" style="font-size:0.75rem"></span>
+    <button class="btn btn-outline btn-sm" onclick="resetViewer()">Load new file</button>
+  </div>
+</header>
+
+<main class="container">
+
+  <!-- ── Upload panel ── -->
+  <div id="upload-panel">
+    <div id="upload-area" onclick="document.getElementById('file-input').click()"
+         ondragover="event.preventDefault();this.classList.add('drag-over')"
+         ondragleave="this.classList.remove('drag-over')"
+         ondrop="handleDrop(event)">
+      <div class="upload-icon">📂</div>
+      <p><strong>Click to select a JSON file</strong> or drag and drop it here.</p>
+      <p>Generated by <code>scripts/export_teaching_json.py</code></p>
+      <input type="file" id="file-input" accept=".json" onchange="handleFileInput(event)">
+    </div>
+    <div id="upload-error" class="hidden"></div>
+  </div>
+
+  <!-- ── Main content (shown after load) ── -->
+  <div id="main-content" class="hidden">
+
+    <!-- Metadata -->
+    <div class="section card">
+      <div class="card-header">📋 Run metadata</div>
+      <div class="card-body">
+        <div class="meta-grid" id="meta-grid"></div>
+      </div>
+    </div>
+
+    <!-- Assumptions -->
+    <div class="section card">
+      <div class="card-header">⚙️ Assumptions</div>
+      <div class="card-body">
+        <dl class="assumptions" id="assumptions-list"></dl>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="section card">
+      <div class="tab-bar">
+        <button class="tab-btn active" onclick="switchTab('tab-triangle', this)">Triangle</button>
+        <button class="tab-btn" onclick="switchTab('tab-factors', this)">Factors (ATA)</button>
+        <button class="tab-btn" onclick="switchTab('tab-atu', this)">ATU / % Developed</button>
+        <button class="tab-btn" onclick="switchTab('tab-ultimate', this)">Ultimates</button>
+      </div>
+
+      <!-- Tab: Triangle -->
+      <div id="tab-triangle" class="tab-panel active" style="padding:1rem">
+        <div class="row-between" style="margin-bottom:0.75rem">
+          <div class="toggle-group">
+            <button id="btn-cumulative" class="btn btn-outline active btn-sm" onclick="showTriangle('cumulative',this)">Cumulative</button>
+            <button id="btn-incremental" class="btn btn-outline btn-sm" onclick="showTriangle('incremental',this)">Incremental</button>
+          </div>
+          <div class="legend" id="triangle-legend"></div>
+        </div>
+        <div class="table-scroll">
+          <table class="tbl" id="triangle-table"></table>
+        </div>
+      </div>
+
+      <!-- Tab: ATA Factors -->
+      <div id="tab-factors" class="tab-panel" style="padding:1rem">
+        <div class="table-scroll">
+          <table class="tbl" id="ata-table"></table>
+        </div>
+      </div>
+
+      <!-- Tab: ATU -->
+      <div id="tab-atu" class="tab-panel" style="padding:1rem">
+        <div class="table-scroll">
+          <table class="tbl" id="atu-table"></table>
+        </div>
+      </div>
+
+      <!-- Tab: Ultimates -->
+      <div id="tab-ultimate" class="tab-panel" style="padding:1rem">
+        <div id="flag-summary" class="hidden" style="margin-bottom:0.75rem"></div>
+        <div class="table-scroll">
+          <table class="tbl summary-tbl" id="ultimate-table"></table>
+        </div>
+      </div>
+
+    </div><!-- /card -->
+
+  </div><!-- /main-content -->
+
+</main>
+
+<script>
+"use strict";
+/* ═══════════════════════════════════════════════════════════════════════════
+   Teaching Viewer — pure vanilla JS, no CDN, no eval, no innerHTML from data
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const SUPPORTED_SCHEMA = "1.0";
+
+// ── Globals ──────────────────────────────────────────────────────────────────
+let _data = null;         // parsed and validated JSON document
+let _triangleMode = "cumulative";  // current triangle display mode
+
+// ── File handling ─────────────────────────────────────────────────────────────
+
+function handleFileInput(evt) {
+  const file = evt.target.files[0];
+  if (file) loadFile(file);
+  evt.target.value = "";  // reset so same file can be re-selected
+}
+
+function handleDrop(evt) {
+  evt.preventDefault();
+  document.getElementById("upload-area").classList.remove("drag-over");
+  const file = evt.dataTransfer.files[0];
+  if (file) loadFile(file);
+}
+
+function loadFile(file) {
+  if (!file.name.endsWith(".json")) {
+    showUploadError("Only .json files are supported.");
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const parsed = JSON.parse(e.target.result);
+      const validated = validate(parsed);
+      _data = validated;
+      renderAll();
+    } catch (err) {
+      showUploadError("Error loading file: " + escText(err.message));
+    }
+  };
+  reader.onerror = () => showUploadError("File could not be read.");
+  reader.readAsText(file);
+}
+
+function resetViewer() {
+  _data = null;
+  _triangleMode = "cumulative";
+  document.getElementById("main-content").classList.add("hidden");
+  document.getElementById("upload-panel").classList.remove("hidden");
+  document.getElementById("upload-error").classList.add("hidden");
+  document.getElementById("run-id-badge").classList.add("hidden");
+}
+
+function showUploadError(msg) {
+  const el = document.getElementById("upload-error");
+  el.className = "alert alert-danger";
+  el.textContent = msg;
+  el.classList.remove("hidden");
+}
+
+// ── Validation ────────────────────────────────────────────────────────────────
+
+function validate(doc) {
+  if (typeof doc !== "object" || doc === null)
+    throw new Error("JSON root must be an object.");
+
+  if (doc.schema_version !== SUPPORTED_SCHEMA)
+    throw new Error(`Unsupported schema_version '${doc.schema_version}'. Expected '${SUPPORTED_SCHEMA}'.`);
+
+  requireString(doc, "run_id");
+  requireString(doc, "generated_at");
+  requireObject(doc, "metadata");
+  requireObject(doc, "assumptions");
+  requireObject(doc, "triangle");
+  requireObject(doc, "development");
+  requireArray(doc, "ultimate_records");
+
+  const tri = doc.triangle;
+  requireArray(tri, "accident_periods");
+  requireArray(tri, "development_ages");
+  requireArray(tri, "cumulative");
+  requireArray(tri, "incremental");
+  requireArray(tri, "observed_mask");
+
+  const nAP = tri.accident_periods.length;
+  const nDev = tri.development_ages.length;
+
+  checkMatrixDimensions(tri.cumulative, nAP, nDev, "triangle.cumulative");
+  checkMatrixDimensions(tri.incremental, nAP, nDev, "triangle.incremental");
+  checkMatrixDimensions(tri.observed_mask, nAP, nDev, "triangle.observed_mask");
+
+  validateLabeledMatrix(doc.development.ldf_triangle, "development.ldf_triangle");
+  validateLabeledMatrix(doc.development.ata_matrix, "development.ata_matrix");
+  validateLabeledMatrix(doc.development.atu_matrix, "development.atu_matrix");
+
+  // Check for Infinity/-Infinity in numeric fields (NaN is already null in JSON)
+  checkNoInfinity(tri.cumulative, "triangle.cumulative");
+  checkNoInfinity(tri.incremental, "triangle.incremental");
+
+  return doc;
+}
+
+function requireString(obj, key) {
+  if (typeof obj[key] !== "string" || !obj[key])
+    throw new Error(`'${key}' must be a non-empty string.`);
+}
+function requireObject(obj, key) {
+  if (typeof obj[key] !== "object" || obj[key] === null || Array.isArray(obj[key]))
+    throw new Error(`'${key}' must be an object.`);
+}
+function requireArray(obj, key) {
+  if (!Array.isArray(obj[key]))
+    throw new Error(`'${key}' must be an array.`);
+}
+function checkMatrixDimensions(matrix, nRows, nCols, path) {
+  if (matrix.length !== nRows)
+    throw new Error(`${path}: expected ${nRows} rows, got ${matrix.length}.`);
+  matrix.forEach((row, i) => {
+    if (!Array.isArray(row))
+      throw new Error(`${path}[${i}]: row must be an array.`);
+    if (row.length !== nCols)
+      throw new Error(`${path}[${i}]: expected ${nCols} columns, got ${row.length}.`);
+  });
+}
+function validateLabeledMatrix(m, path) {
+  if (!m || !Array.isArray(m.row_labels) || !Array.isArray(m.development_ages) || !Array.isArray(m.values))
+    throw new Error(`${path}: must have row_labels, development_ages, values arrays.`);
+  const nCols = m.development_ages.length;
+  m.values.forEach((row, i) => {
+    if (!Array.isArray(row) || row.length !== nCols)
+      throw new Error(`${path}.values[${i}]: expected ${nCols} columns.`);
+  });
+}
+function checkNoInfinity(matrix, path) {
+  matrix.forEach((row, i) => {
+    row.forEach((v, j) => {
+      if (typeof v === "number" && !isFinite(v))
+        throw new Error(`${path}[${i}][${j}]: non-finite value not allowed.`);
+    });
+  });
+}
+
+// ── Rendering ─────────────────────────────────────────────────────────────────
+
+function renderAll() {
+  renderMeta();
+  renderAssumptions();
+  renderTriangle("cumulative");
+  renderATA();
+  renderATU();
+  renderUltimate();
+  document.getElementById("upload-panel").classList.add("hidden");
+  document.getElementById("main-content").classList.remove("hidden");
+  const badge = document.getElementById("run-id-badge");
+  badge.textContent = "Run: " + escText(_data.run_id.slice(0, 8));
+  badge.classList.remove("hidden");
+}
+
+function renderMeta() {
+  const meta = _data.metadata;
+  const grid = document.getElementById("meta-grid");
+  clearEl(grid);
+  const items = [
+    ["Cutoff", meta.cutoff],
+    ["Basis", meta.basis],
+    ["Concept", meta.concept],
+    ["Method", meta.method],
+    ["Units", meta.units],
+    ["Level 1", meta.portfolio?.level_1 ?? "—"],
+    ["Level 2", meta.portfolio?.level_2 ?? "—"],
+    ["Level 3", meta.portfolio?.level_3 ?? "—"],
+    ["Source", meta.source_identifier],
+    ["Generated at", _data.generated_at],
+    ["Schema version", _data.schema_version],
+    ["Run ID", _data.run_id],
+  ];
+  items.forEach(([label, value]) => {
+    const div = el("div", "meta-item");
+    div.appendChild(el("span", "label", label));
+    div.appendChild(el("span", "value mono", String(value ?? "—")));
+    grid.appendChild(div);
+  });
+}
+
+function renderAssumptions() {
+  const a = _data.assumptions;
+  const dl = document.getElementById("assumptions-list");
+  clearEl(dl);
+  const entries = [
+    ["Selected average", a.selected_average],
+    ["Tail convention", a.tail_convention],
+    ["Factor selection note", a.factor_selection_note],
+    ["Available averages", Array.isArray(a.available_averages) ? a.available_averages.join(", ") : ""],
+    ["Validation note", a.validation_note],
+  ];
+  entries.forEach(([term, def]) => {
+    if (!def) return;
+    const dt = document.createElement("dt");
+    dt.textContent = term;
+    const dd = document.createElement("dd");
+    dd.textContent = def;
+    dl.appendChild(dt);
+    dl.appendChild(dd);
+  });
+}
+
+// ── Triangle rendering ────────────────────────────────────────────────────────
+
+function showTriangle(mode, btn) {
+  _triangleMode = mode;
+  document.querySelectorAll(".toggle-group .btn").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  renderTriangle(mode);
+}
+
+function renderTriangle(mode) {
+  const tri = _data.triangle;
+  const values = mode === "cumulative" ? tri.cumulative : tri.incremental;
+  const mask = tri.observed_mask;
+  const aps = tri.accident_periods;
+  const devs = tri.development_ages;
+
+  // Compute min/max for heatmap (skip null)
+  let vmin = Infinity, vmax = -Infinity;
+  values.forEach(row => row.forEach(v => {
+    if (v !== null) { vmin = Math.min(vmin, v); vmax = Math.max(vmax, v); }
+  }));
+  if (!isFinite(vmin)) { vmin = 0; vmax = 1; }
+  const hasNegative = vmin < 0;
+
+  // Update legend
+  const legendEl = document.getElementById("triangle-legend");
+  clearEl(legendEl);
+  if (hasNegative) {
+    legendEl.appendChild(colorSwatch(cssHeat(vmin, vmin, vmax)));
+    legendEl.appendChild(text(fmt(vmin)));
+    legendEl.appendChild(colorBar(vmin, vmax));
+    legendEl.appendChild(text(fmt(vmax)));
+  } else {
+    legendEl.appendChild(colorSwatch("#ffffff"));
+    legendEl.appendChild(text("0"));
+    legendEl.appendChild(colorBar(vmin, vmax));
+    legendEl.appendChild(text(fmt(vmax)));
+  }
+  const misswatch = el("span", "legend-swatch");
+  misswatch.style.background = "var(--missing-bg)";
+  legendEl.appendChild(misswatch);
+  legendEl.appendChild(text("missing / not yet observed"));
+
+  // Build table
+  const tbl = document.getElementById("triangle-table");
+  clearEl(tbl);
+
+  const thead = document.createElement("thead");
+  const hrow = document.createElement("tr");
+  appendTH(hrow, "accident_period", "row-header");
+  devs.forEach(d => appendTH(hrow, String(d)));
+  thead.appendChild(hrow);
+  tbl.appendChild(thead);
+
+  const tbody = document.createElement("tbody");
+  aps.forEach((ap, i) => {
+    const tr = document.createElement("tr");
+    appendTD(tr, ap, "row-label");
+    devs.forEach((_, j) => {
+      const observed = mask[i][j];
+      const v = values[i][j];
+      const td = document.createElement("td");
+      if (!observed || v === null) {
+        td.className = "missing";
+        td.textContent = "·";
+      } else {
+        td.className = "heat-cell";
+        td.textContent = fmt(v);
+        td.style.backgroundColor = cssHeat(v, vmin, vmax);
+        td.style.color = contrastColor(v, vmin, vmax);
+      }
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+  tbl.appendChild(tbody);
+}
+
+function getHeatColors() {
+  // Read current CSS custom properties so dark mode tokens are honoured
+  const s = getComputedStyle(document.documentElement);
+  return {
+    zero: s.getPropertyValue('--heat-zero').trim() || '#ffffff',
+    max:  s.getPropertyValue('--heat-max').trim()  || '#1a4c8c',
+    neg:  s.getPropertyValue('--heat-neg').trim()  || '#c0392b',
+  };
+}
+
+function cssHeat(v, vmin, vmax) {
+  // Diverging scale: negative → neg colour, zero → surface, positive → max colour
+  const { zero, max, neg } = getHeatColors();
+  if (vmin >= 0) {
+    const t = vmax > vmin ? (v - vmin) / (vmax - vmin) : 0;
+    return interpolateColor(zero, max, t);
+  }
+  if (v < 0) {
+    const t = vmin < 0 ? Math.abs(v) / Math.abs(vmin) : 0;
+    return interpolateColor(zero, neg, t);
+  }
+  const t = vmax > 0 ? v / vmax : 0;
+  return interpolateColor(zero, max, t);
+}
+
+function interpolateColor(hexA, hexB, t) {
+  const a = hexToRgb(hexA), b = hexToRgb(hexB);
+  const r = Math.round(a[0] + (b[0] - a[0]) * t);
+  const g = Math.round(a[1] + (b[1] - a[1]) * t);
+  const bl = Math.round(a[2] + (b[2] - a[2]) * t);
+  return `rgb(${r},${g},${bl})`;
+}
+function hexToRgb(hex) {
+  const h = hex.replace("#", "");
+  return [
+    parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)
+  ];
+}
+function contrastColor(v, vmin, vmax) {
+  // Compute background luminance and return an explicit colour with guaranteed contrast
+  const bg = cssHeat(v, vmin, vmax);
+  const rgb = bg.replace(/[^\d,]/g, '').split(',').map(Number);
+  const luminance = (0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]) / 255;
+  return luminance > 0.5 ? '#111111' : '#ffffff';
+}
+
+function colorBar(vmin, vmax) {
+  const { zero, max, neg } = getHeatColors();
+  const bar = el("span", "legend-bar");
+  if (vmin >= 0) {
+    bar.style.background = `linear-gradient(to right, ${zero}, ${max})`;
+  } else {
+    bar.style.background = `linear-gradient(to right, ${neg}, ${zero}, ${max})`;
+  }
+  return bar;
+}
+function colorSwatch(color) {
+  const s = el("span", "legend-swatch");
+  s.style.background = color;
+  return s;
+}
+
+// ── ATA Matrix ────────────────────────────────────────────────────────────────
+
+function renderATA() {
+  const m = _data.development.ata_matrix;
+  renderLabeledMatrix(
+    document.getElementById("ata-table"),
+    m,
+    "average",
+    v => v === null ? "·" : v.toFixed(5),
+    row => row === "Selected" ? "selected-row" : ""
+  );
+}
+
+function renderATU() {
+  const m = _data.development.atu_matrix;
+  renderLabeledMatrix(
+    document.getElementById("atu-table"),
+    m,
+    "measure",
+    (v, rowLabel) => {
+      if (v === null) return "·";
+      if (rowLabel && rowLabel.includes("%")) return (v * 100).toFixed(1) + "%";
+      return v.toFixed(5);
+    }
+  );
+}
+
+function renderLabeledMatrix(tbl, m, headerLabel, fmtFn, rowClassFn) {
+  clearEl(tbl);
+  const { row_labels, development_ages, values } = m;
+
+  const thead = document.createElement("thead");
+  const hrow = document.createElement("tr");
+  appendTH(hrow, headerLabel, "row-header");
+  development_ages.forEach(d => appendTH(hrow, String(d)));
+  thead.appendChild(hrow);
+  tbl.appendChild(thead);
+
+  const tbody = document.createElement("tbody");
+  row_labels.forEach((rowLabel, i) => {
+    const tr = document.createElement("tr");
+    const extraClass = rowClassFn ? rowClassFn(rowLabel) : "";
+    if (extraClass) tr.className = extraClass;
+    appendTD(tr, rowLabel, "row-label");
+    values[i].forEach(v => {
+      const td = document.createElement("td");
+      if (v === null) {
+        td.className = "missing";
+        td.textContent = "·";
+      } else {
+        td.textContent = fmtFn(v, rowLabel);
+      }
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+  tbl.appendChild(tbody);
+}
+
+// ── Ultimate table ────────────────────────────────────────────────────────────
+
+function renderUltimate() {
+  const records = _data.ultimate_records;
+  const tbl = document.getElementById("ultimate-table");
+  clearEl(tbl);
+
+  // Flag summary
+  const nAtuBelow1 = records.filter(r => r.flags.atu_below_1).length;
+  const nPctAbove1 = records.filter(r => r.flags.percent_developed_above_1).length;
+  const nUltBelow = records.filter(r => r.flags.ultimate_below_actual).length;
+  const flagSummary = document.getElementById("flag-summary");
+  clearEl(flagSummary);
+  if (nAtuBelow1 + nPctAbove1 + nUltBelow > 0) {
+    flagSummary.className = "alert alert-warning";
+    const msgs = [];
+    if (nAtuBelow1) msgs.push(`ATU < 1.0: ${nAtuBelow1} accident period(s)`);
+    if (nPctAbove1) msgs.push(`% Developed > 100%: ${nPctAbove1} accident period(s)`);
+    if (nUltBelow) msgs.push(`Ultimate < Current Incurred: ${nUltBelow} accident period(s)`);
+    flagSummary.textContent = "Diagnostic flags: " + msgs.join("; ");
+    flagSummary.classList.remove("hidden");
+  } else {
+    flagSummary.classList.add("hidden");
+  }
+
+  const headers = [
+    "accident_period", "actual_dev_period", "applied_atu_period",
+    "current_incurred", "ATU", "% developed", "ultimate", "additional_dev",
+    "atu<1", "pct>1", "ult<actual"
+  ];
+  const thead = document.createElement("thead");
+  const hrow = document.createElement("tr");
+  headers.forEach((h, i) => appendTH(hrow, h, i === 0 ? "row-header" : ""));
+  thead.appendChild(hrow);
+  tbl.appendChild(thead);
+
+  const tbody = document.createElement("tbody");
+  records.forEach(r => {
+    const tr = document.createElement("tr");
+    appendTD(tr, r.accident_period, "row-label");
+    appendTD(tr, r.actual_development_period ?? "—");
+    appendTD(tr, r.applied_atu_period ?? "—");
+    appendTD(tr, r.current_incurred !== null ? fmt(r.current_incurred) : "—");
+    appendTD(tr, r.atu !== null ? r.atu.toFixed(5) : "—");
+    appendTD(tr, r.percent_developed !== null ? (r.percent_developed * 100).toFixed(1) + "%" : "—");
+    appendTD(tr, r.ultimate !== null ? fmt(r.ultimate) : "—");
+    appendTD(tr, r.additional_development !== null ? fmt(r.additional_development) : "—");
+    appendFlagTD(tr, r.flags.atu_below_1);
+    appendFlagTD(tr, r.flags.percent_developed_above_1);
+    appendFlagTD(tr, r.flags.ultimate_below_actual);
+    tbody.appendChild(tr);
+  });
+  tbl.appendChild(tbody);
+}
+
+function appendFlagTD(tr, flag) {
+  const td = document.createElement("td");
+  td.textContent = flag ? "✓" : "·";
+  td.className = flag ? "flag-cell-yes" : "flag-cell-no";
+  tr.appendChild(td);
+}
+
+// ── Tab switching ─────────────────────────────────────────────────────────────
+
+function switchTab(tabId, btn) {
+  document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
+  document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+  document.getElementById(tabId).classList.add("active");
+  btn.classList.add("active");
+}
+
+// ── Utilities ─────────────────────────────────────────────────────────────────
+
+function fmt(v) {
+  if (v === null || v === undefined) return "—";
+  // Use locale-aware formatting with 2 decimal places
+  return Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function escText(s) {
+  // Safe text escape — used only for error messages
+  return String(s).replace(/[<>&"']/g, c => ({"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;","'":"&#39;"})[c]);
+}
+
+function el(tag, className, textContent) {
+  const e = document.createElement(tag);
+  if (className) e.className = className;
+  if (textContent !== undefined) e.textContent = textContent;
+  return e;
+}
+
+function text(s) {
+  const span = document.createElement("span");
+  span.textContent = s;
+  return span;
+}
+
+function clearEl(el) {
+  while (el.firstChild) el.removeChild(el.firstChild);
+}
+
+function appendTH(tr, label, extraClass) {
+  const th = document.createElement("th");
+  th.textContent = label;
+  th.className = extraClass || "";
+  tr.appendChild(th);
+}
+
+function appendTD(tr, label, extraClass) {
+  const td = document.createElement("td");
+  td.textContent = label;
+  td.className = extraClass || "";
+  tr.appendChild(td);
+}
+
+// Re-render triangle when OS theme changes so heatmap colours update
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function() {
+  if (_data) renderTriangle(_triangleMode);
+});
+</script>
+</body>
+</html>
